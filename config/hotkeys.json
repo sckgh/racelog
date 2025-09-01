@@ -1,0 +1,19 @@
+{
+  "hotkeys": [
+    {
+      "key": "<ctrl>+<shift>+f1",
+      "type": "static",
+      "message": "Routine check-in."
+    },
+    {
+      "key": "<ctrl>+<shift>+f2",
+      "type": "static",
+      "message": "Starting new task."
+    },
+    {
+      "key": "<ctrl>+<shift>+f3",
+      "type": "prompt",
+      "message": "Enter observation:"
+    }
+  ]
+}

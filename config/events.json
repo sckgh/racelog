@@ -1,0 +1,25 @@
+{
+  "events": [
+    {
+      "name": "Radio Net Check-in",
+      "template": [
+        "Net Control: Announcing the start of the weekly radio net.",
+        "Please check in now.",
+        "[PROMPT] Callsign:",
+        "[PROMPT] Name:",
+        "[PROMPT] Location:",
+        "[PROMPT] Signal Report:"
+      ]
+    },
+    {
+      "name": "Flight Pre-takeoff Checklist",
+      "template": [
+        "[PROMPT] Aircraft Registration:",
+        "Pre-flight inspection complete.",
+        "Fuel levels checked.",
+        "Controls free and correct.",
+        "Avionics on and checked."
+      ]
+    }
+  ]
+}

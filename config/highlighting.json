@@ -1,0 +1,21 @@
+{
+  "rules": [
+    {
+      "text": "Routine check-in.",
+      "foreground": "green"
+    },
+    {
+      "text": "observation",
+      "foreground": "cyan"
+    },
+    {
+      "text": "ERROR",
+      "foreground": "red",
+      "font_style": "bold"
+    },
+    {
+      "text": "Starting new task.",
+      "foreground": "#FF9900"
+    }
+  ]
+}
