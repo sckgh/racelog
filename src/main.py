@@ -26,6 +26,10 @@ class App(ctk.CTk):
         self.dropdown_messages_config = self.load_dropdown_messages_config()
         self.highlight_rules = []
 
+        # Store full lists for autocomplete
+        self.all_event_names = ["Blank Log"] + [event["name"] for event in self.events_config.get("events", [])]
+        self.all_dropdown_messages = self.dropdown_messages_config.get("messages", ["No messages configured"])
+
         # Create the textbox
         self.textbox = ctk.CTkTextbox(self, wrap="word")
         self.textbox.pack(expand=True, fill="both", padx=5, pady=5)
@@ -44,10 +48,11 @@ class App(ctk.CTk):
         self.car_report_entry = ctk.CTkEntry(self.quick_log_frame, placeholder_text="Car/Report Number")
         self.car_report_entry.pack(side="left", padx=5, pady=5, fill="x", expand=True)
 
-        dropdown_messages = self.dropdown_messages_config.get("messages", ["No messages configured"])
-        self.quick_message_var = ctk.StringVar(value=dropdown_messages[0])
-        self.quick_message_menu = ctk.CTkOptionMenu(self.quick_log_frame, values=dropdown_messages, variable=self.quick_message_var)
+        self.quick_message_var = ctk.StringVar()
+        self.quick_message_menu = ctk.CTkComboBox(self.quick_log_frame, values=self.all_dropdown_messages, variable=self.quick_message_var)
+        self.quick_message_menu.set(self.all_dropdown_messages[0])
         self.quick_message_menu.pack(side="left", padx=5, pady=5)
+        self.quick_message_var.trace_add("write", self._update_quick_log_options)
 
         self.log_quick_message_button = ctk.CTkButton(self.quick_log_frame, text="Log", command=self.log_from_quick_log_bar)
         self.log_quick_message_button.pack(side="left", padx=(0,5), pady=5)
@@ -57,10 +62,11 @@ class App(ctk.CTk):
         self.button_frame.pack(fill="x", padx=5, pady=5)
 
         # Create event selection dropdown
-        event_names = ["Blank Log"] + [event["name"] for event in self.events_config.get("events", [])]
-        self.event_menu_var = ctk.StringVar(value=event_names[0])
-        self.event_menu = ctk.CTkOptionMenu(self.button_frame, values=event_names, variable=self.event_menu_var)
+        self.event_menu_var = ctk.StringVar()
+        self.event_menu = ctk.CTkComboBox(self.button_frame, values=self.all_event_names, variable=self.event_menu_var)
+        self.event_menu.set(self.all_event_names[0])
         self.event_menu.pack(side="left", padx=5, pady=5)
+        self.event_menu_var.trace_add("write", self._update_event_options)
 
         # Create the buttons
         self.new_log_button = ctk.CTkButton(self.button_frame, text="New Log", command=self.new_log)
@@ -79,6 +85,22 @@ class App(ctk.CTk):
         self.setup_hotkeys()
         self.log_message("Application started.")
 
+    def _update_event_options(self, *args):
+        current_text = self.event_menu_var.get()
+        if not current_text:
+            self.event_menu.configure(values=self.all_event_names)
+            return
+        filtered_values = [name for name in self.all_event_names if current_text.lower() in name.lower()]
+        self.event_menu.configure(values=filtered_values if filtered_values else [])
+
+    def _update_quick_log_options(self, *args):
+        current_text = self.quick_message_var.get()
+        if not current_text:
+            self.quick_message_menu.configure(values=self.all_dropdown_messages)
+            return
+        filtered_values = [msg for msg in self.all_dropdown_messages if current_text.lower() in msg.lower()]
+        self.quick_message_menu.configure(values=filtered_values if filtered_values else [])
+
     def log_message(self, message):
         self.textbox.configure(state="normal")
         start_index = self.textbox.index("end-1c")
@@ -90,7 +112,7 @@ class App(ctk.CTk):
         self.textbox.configure(state="disabled")
 
     def new_log(self):
-        selected_event_name = self.event_menu_var.get()
+        selected_event_name = self.event_menu.get()
 
         self.textbox.configure(state="normal")
         self.textbox.delete("1.0", "end")
@@ -117,22 +139,17 @@ class App(ctk.CTk):
                 self.log_message(template_line)
 
     def log_from_quick_log_bar(self):
-        """ Logs a message using the quick log bar controls. """
         caller = self.caller_entry.get().strip()
         car_report = self.car_report_entry.get().strip()
-        message = self.quick_message_var.get()
+        message = self.quick_message_menu.get()
 
-        # Handle the case where the dropdown might be empty or unconfigured
         if message == "No messages configured":
             self.log_message("Cannot log: No messages configured for dropdown.")
             return
 
-        # Construct the string with all separators to match the user's format.
-        # The log_message function adds the timestamp, so we prepend " -- ".
         log_string = f"-- {caller} -- {car_report} -- {message}"
         self.log_message(log_string)
 
-        # Clear the entry boxes after logging
         self.caller_entry.delete(0, "end")
         self.car_report_entry.delete(0, "end")
 
@@ -170,10 +187,11 @@ class App(ctk.CTk):
 
     def load_config(self, filepath, default_content):
         if not os.path.exists(filepath):
-            self.log_message(f"Config file not found. Creating default at {filepath}")
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             with open(filepath, "w") as f:
                 json.dump(default_content, f, indent=2)
+            # Log message after file creation
+            self.after(100, lambda: self.log_message(f"Config file not found. Creating default at {filepath}"))
             return default_content
         with open(filepath, "r") as f:
             return json.load(f)
@@ -218,9 +236,20 @@ class App(ctk.CTk):
         self.highlight_rules = config.get("rules", [])
         for i, rule in enumerate(self.highlight_rules):
             tag_name = f"highlight_{i}"
+            font_style_str = ""
+            if "bold" in rule.get("font_style", ""): font_style_str += "B"
+            if "italic" in rule.get("font_style", ""): font_style_str += "I"
+            if "underline" in rule.get("font_style", ""): font_style_str += "U"
+
+            rule["pdf_style"] = {
+                "color": rule.get("foreground", "#FFFFFF"),
+                "style": font_style_str
+            }
+
             font_parts = ["Helvetica", 10]
             if rule.get("font_style"):
                 font_parts.append(rule.get("font_style"))
+
             self.textbox.tag_config(
                 tag_name,
                 foreground=rule.get("foreground", "white"),
@@ -251,26 +280,40 @@ class App(ctk.CTk):
         )
         if not filepath:
             return
+
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Helvetica", size=10)
-        tag_styles = {rule["tag_name"]: rule for rule in self.highlight_rules}
+
+        tag_styles = {rule["tag_name"]: rule["pdf_style"] for rule in self.highlight_rules if "pdf_style" in rule}
+        default_style = {'color': '#000000', 'style': ''}
+
         content = self.textbox.dump("1.0", "end-1c", tag=True)
+        active_tags = []
+
         for key, value, index in content:
             if key == "text":
-                decoded_text = value.encode('latin-1', 'replace').decode('latin-1')
-                pdf.write(5, decoded_text)
+                # Determine style from active tags
+                final_style = default_style.copy()
+                for tag_name in active_tags:
+                    if tag_name in tag_styles:
+                        final_style.update(tag_styles[tag_name])
+
+                # Set PDF style
+                color_hex = final_style["color"].lstrip('#')
+                r, g, b = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
+                pdf.set_text_color(r, g, b)
+                pdf.set_font("Helvetica", style=final_style["style"], size=10)
+
+                # Write text
+                pdf.write(5, value)
+
             elif key == "tagon":
-                style = tag_styles.get(value)
-                if style:
-                    color_hex = style.get("foreground", "#000000").lstrip('#')
-                    r, g, b = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
-                    pdf.set_text_color(r, g, b)
-                    font_style = style.get("font_style", "").upper()
-                    pdf.set_font("Helvetica", style=font_style, size=10)
+                active_tags.append(value)
             elif key == "tagoff":
-                pdf.set_text_color(0, 0, 0)
-                pdf.set_font("Helvetica", style="", size=10)
+                if value in active_tags:
+                    active_tags.remove(value)
+
         try:
             pdf.output(filepath)
             self.log_message(f"Successfully exported log to {filepath}")
