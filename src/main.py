@@ -23,12 +23,14 @@ class App(ctk.CTk):
         # Load configurations
         self.events_config = self.load_events_config()
         self.highlight_rules = []
-        self.configure_highlighting()
 
         # Create the textbox
         self.textbox = ctk.CTkTextbox(self, wrap="word")
         self.textbox.pack(expand=True, fill="both", padx=5, pady=5)
         self.textbox.configure(state="disabled")
+
+        # Configure highlighting now that the textbox exists
+        self.configure_highlighting()
 
         # Create the button frame
         self.button_frame = ctk.CTkFrame(self)
