@@ -10,6 +10,7 @@ from fpdf import FPDF
 CONFIG_FILE = "config/hotkeys.json"
 HIGHLIGHT_CONFIG_FILE = "config/highlighting.json"
 EVENTS_CONFIG_FILE = "config/events.json"
+DROPDOWN_CONFIG_FILE = "config/dropdown_messages.json"
 
 class App(ctk.CTk):
     def __init__(self):
@@ -22,6 +23,7 @@ class App(ctk.CTk):
 
         # Load configurations
         self.events_config = self.load_events_config()
+        self.dropdown_messages_config = self.load_dropdown_messages_config()
         self.highlight_rules = []
 
         # Create the textbox
@@ -32,7 +34,25 @@ class App(ctk.CTk):
         # Configure highlighting now that the textbox exists
         self.configure_highlighting()
 
-        # Create the button frame
+        # Create the quick-log frame
+        self.quick_log_frame = ctk.CTkFrame(self)
+        self.quick_log_frame.pack(fill="x", padx=5, pady=(0, 5))
+
+        self.caller_entry = ctk.CTkEntry(self.quick_log_frame, placeholder_text="Caller Text")
+        self.caller_entry.pack(side="left", padx=(5,0), pady=5, fill="x", expand=True)
+
+        self.car_report_entry = ctk.CTkEntry(self.quick_log_frame, placeholder_text="Car/Report Number")
+        self.car_report_entry.pack(side="left", padx=5, pady=5, fill="x", expand=True)
+
+        dropdown_messages = self.dropdown_messages_config.get("messages", ["No messages configured"])
+        self.quick_message_var = ctk.StringVar(value=dropdown_messages[0])
+        self.quick_message_menu = ctk.CTkOptionMenu(self.quick_log_frame, values=dropdown_messages, variable=self.quick_message_var)
+        self.quick_message_menu.pack(side="left", padx=5, pady=5)
+
+        self.log_quick_message_button = ctk.CTkButton(self.quick_log_frame, text="Log", command=self.log_from_quick_log_bar)
+        self.log_quick_message_button.pack(side="left", padx=(0,5), pady=5)
+
+        # Create the main button frame
         self.button_frame = ctk.CTkFrame(self)
         self.button_frame.pack(fill="x", padx=5, pady=5)
 
@@ -96,6 +116,26 @@ class App(ctk.CTk):
             else:
                 self.log_message(template_line)
 
+    def log_from_quick_log_bar(self):
+        """ Logs a message using the quick log bar controls. """
+        caller = self.caller_entry.get().strip()
+        car_report = self.car_report_entry.get().strip()
+        message = self.quick_message_var.get()
+
+        # Handle the case where the dropdown might be empty or unconfigured
+        if message == "No messages configured":
+            self.log_message("Cannot log: No messages configured for dropdown.")
+            return
+
+        # Construct the string with all separators to match the user's format.
+        # The log_message function adds the timestamp, so we prepend " -- ".
+        log_string = f"-- {caller} -- {car_report} -- {message}"
+        self.log_message(log_string)
+
+        # Clear the entry boxes after logging
+        self.caller_entry.delete(0, "end")
+        self.car_report_entry.delete(0, "end")
+
     def save_log(self):
         filepath = filedialog.asksaveasfilename(
             defaultextension=".txt",
@@ -147,6 +187,9 @@ class App(ctk.CTk):
     def load_events_config(self):
         return self.load_config(EVENTS_CONFIG_FILE, {"events": []})
 
+    def load_dropdown_messages_config(self):
+        return self.load_config(DROPDOWN_CONFIG_FILE, {"messages": []})
+
     def setup_hotkeys(self):
         config = self.load_hotkeys_config()
         hotkeys = {}
@@ -163,8 +206,12 @@ class App(ctk.CTk):
         try:
             self.hotkey_listener = keyboard.GlobalHotKeys(hotkeys)
             self.hotkey_listener.start()
+        except ValueError as e:
+            error_msg = (f"Invalid hotkey syntax for '{e}' in config/hotkeys.json. "
+                         "Special keys must be in angle brackets, e.g., '<f1>'.")
+            self.log_message(f"Hotkey Error: {error_msg}")
         except Exception as e:
-            self.log_message(f"Error setting up hotkeys: {e}")
+            self.log_message(f"An unexpected error occurred setting up hotkeys: {e}")
 
     def configure_highlighting(self):
         config = self.load_highlighting_config()
